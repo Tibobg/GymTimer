@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart' as fft;
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -31,7 +30,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   final Set<String> _done = {};
   final AudioPlayer _player = AudioPlayer();
   bool _isAdvancing = false;
-  final _ln = FlutterLocalNotificationsPlugin();
 
   YoutubePlayerController? _ytController;
   VideoPlayerController? _mp4Controller;
@@ -45,30 +43,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     _timer.onPause = _playBeep;
     _timer.addListener(_onTimerChanged);
     _timer.init();
-    _initNotif();
     _startFgService();
     _loadMedia();
   }
 
   void _onTimerChanged() {
     if (mounted) setState(() {});
-  }
-
-  Future<void> _initNotif() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _ln.initialize(const InitializationSettings(android: androidInit));
-    const androidChannel = AndroidNotificationChannel(
-      'beep_channel',
-      'Beep',
-      description: 'Signal de pause entre séries',
-      importance: Importance.max,
-      playSound: true,
-    );
-    await _ln
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(androidChannel);
   }
 
   Future<void> _startFgService() async {
@@ -118,23 +98,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   void _playBeep() async {
     HapticFeedback.heavyImpact();
-    try {
-      const androidDetails = AndroidNotificationDetails(
-        'beep_channel',
-        'Beep',
-        channelDescription: 'Signal de pause',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-      );
-      await _ln.show(
-        888,
-        'Pause !',
-        'Série terminée',
-        const NotificationDetails(android: androidDetails),
-      );
-    } catch (_) {}
-    // Beep custom via audioplayers (peut échouer en background, c'est le backup)
     try {
       await _player.setAudioContext(
         AudioContext(
@@ -287,10 +250,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   @override
   Widget build(BuildContext context) {
-    final next = nextExercise;
-    final showNext =
-        _timer.elapsed >= const Duration(minutes: 4, seconds: 30) &&
-        next != null;
     final isAbdosDay = widget.plan.name.toLowerCase().contains('abdos');
 
     return Scaffold(
