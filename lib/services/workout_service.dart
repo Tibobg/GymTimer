@@ -17,8 +17,15 @@ class WorkoutService {
       await savePlans(defaults);
       return defaults;
     }
-    final list = jsonDecode(raw) as List;
-    return list.map((e) => WorkoutPlan.fromJson(e)).toList();
+    try {
+      final list = jsonDecode(raw) as List;
+      return list.map((e) => WorkoutPlan.fromJson(e)).toList();
+    } catch (_) {
+      // Ancien format corrompu → reset
+      final defaults = _defaultPlans();
+      await savePlans(defaults);
+      return defaults;
+    }
   }
 
   static Future<void> savePlans(List<WorkoutPlan> plans) async {

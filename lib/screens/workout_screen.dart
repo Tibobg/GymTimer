@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart' as fft;
-import 'package:flutter_overlay_window/flutter_overlay_window.dart' as fow;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
@@ -12,6 +11,7 @@ import '../models/workout_session.dart';
 import '../services/settings_service.dart';
 import '../services/timer_service.dart';
 import '../services/workout_service.dart';
+import '../bg_service.dart';
 import 'history_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
@@ -30,9 +30,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   final Set<String> _done = {};
   final AudioPlayer _player = AudioPlayer();
   bool _isAdvancing = false;
-  bool _overlayShown = false;
   final _ln = FlutterLocalNotificationsPlugin();
-  static const int _notifId = 1001;
 
   YoutubePlayerController? _ytController;
   VideoPlayerController? _mp4Controller;
@@ -43,19 +41,49 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     WidgetsBinding.instance.addObserver(this);
     _timer = TimerService();
     _timer.onAutoAdvance = _onAutoAdvance;
+    _timer.addListener(_onTimerChanged);
     _timer.init();
     _initNotif();
-    _ensureForegroundService();
+    _startFgService();
     _loadMedia();
   }
 
-  void _initNotif() {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    _ln.initialize(const InitializationSettings(android: androidInit));
+  void _onTimerChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _ensureForegroundService() async {
+  Future<void> _initNotif() async {
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    await _ln.initialize(const InitializationSettings(android: androidInit));
+    const androidChannel = AndroidNotificationChannel(
+      'beep_channel',
+      'Beep',
+      description: 'Signal de pause entre séries',
+      importance: Importance.max,
+      playSound: true,
+    );
+    await _ln
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(androidChannel);
+  }
+
+  Future<void> _startFgService() async {
     await fft.FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    final isRunning = await fft.FlutterForegroundTask.isRunningService;
+    if (!isRunning) {
+      await fft.FlutterForegroundTask.startService(
+        notificationTitle: 'Gym Timer',
+        notificationText: 'Prêt',
+        callback: startCallback,
+      );
+    }
+  }
+
+  Future<void> _stopFgService() async {
+    final isRunning = await fft.FlutterForegroundTask.isRunningService;
+    if (isRunning) await fft.FlutterForegroundTask.stopService();
   }
 
   MuscleGroup get currentGroup =>
@@ -66,12 +94,10 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         currentGroup.exercises.length - 1,
       )];
   PlannedExercise? get nextExercise {
-    if (_exIndexInGroup + 1 < currentGroup.exercises.length) {
+    if (_exIndexInGroup + 1 < currentGroup.exercises.length)
       return currentGroup.exercises[_exIndexInGroup + 1];
-    }
-    if (_groupIndex + 1 < widget.plan.groups.length) {
+    if (_groupIndex + 1 < widget.plan.groups.length)
       return widget.plan.groups[_groupIndex + 1].exercises.first;
-    }
     return null;
   }
 
@@ -80,7 +106,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     _mp4Controller?.dispose();
     _ytController = null;
     _mp4Controller = null;
-
     final ex = currentExercise;
     if (ex.name.toLowerCase().contains('circuit') &&
         widget.plan.name.toLowerCase().contains('abdos')) {
@@ -90,6 +115,24 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void _playBeep() async {
+    // Beep via notification (fiable en background)
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'beep_channel',
+        'Beep',
+        channelDescription: 'Signal de pause',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+      );
+      await _ln.show(
+        888,
+        'Pause !',
+        'Série terminée',
+        const NotificationDetails(android: androidDetails),
+      );
+    } catch (_) {}
+    // Beep custom via audioplayers (peut échouer en background, c'est le backup)
     try {
       await _player.setAudioContext(
         AudioContext(
@@ -110,9 +153,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   String _doneKey(int gi, int ei) => '$gi-$ei';
   bool _isDone(int gi, int ei) => _done.contains(_doneKey(gi, ei));
 
-  void _markDoneCurrent() {
-    _done.add(_doneKey(_groupIndex, _exIndexInGroup));
-  }
+  void _markDoneCurrent() => _done.add(_doneKey(_groupIndex, _exIndexInGroup));
 
   void _onAutoAdvance() {
     if (_isAdvancing) return;
@@ -202,11 +243,10 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   void _switchGroup() {
     setState(() {
-      if (_groupIndex + 1 < widget.plan.groups.length) {
+      if (_groupIndex + 1 < widget.plan.groups.length)
         _groupIndex++;
-      } else if (_groupIndex - 1 >= 0) {
+      else if (_groupIndex - 1 >= 0)
         _groupIndex--;
-      }
       _exIndexInGroup = 0;
     });
     _timer.reset();
@@ -223,65 +263,17 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      _openOverlayIfNeeded();
-    }
-    if (state == AppLifecycleState.resumed) {
-      _closeOverlayIfNeeded();
-    }
-  }
-
-  Future<void> _openOverlayIfNeeded() async {
-    try {
-      final granted = await fow.FlutterOverlayWindow.isPermissionGranted();
-      if (!granted) {
-        final ok = await fow.FlutterOverlayWindow.requestPermission();
-        if (ok != true) return;
-      }
-      bool active = await fow.FlutterOverlayWindow.isActive();
-      if (active) {
-        try {
-          await fow.FlutterOverlayWindow.closeOverlay();
-        } catch (_) {}
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-      await fow.FlutterOverlayWindow.showOverlay(
-        height: 72,
-        width: 72,
-        enableDrag: true,
-        alignment: fow.OverlayAlignment.centerRight,
-        flag: fow.OverlayFlag.defaultFlag,
-        visibility: fow.NotificationVisibility.visibilityPublic,
-        positionGravity: fow.PositionGravity.auto,
-        overlayTitle: 'Gym Timer',
-        overlayContent: 'Bulle active',
-      );
-      await Future.delayed(const Duration(milliseconds: 150));
-      _overlayShown = await fow.FlutterOverlayWindow.isActive();
-    } catch (_) {
-      _overlayShown = false;
-    }
-  }
-
-  Future<void> _closeOverlayIfNeeded() async {
-    if (!_overlayShown) return;
-    try {
-      await fow.FlutterOverlayWindow.closeOverlay();
-    } catch (_) {}
-    _overlayShown = false;
-  }
+  void didChangeAppLifecycleState(AppLifecycleState state) {}
 
   @override
   void dispose() {
+    _timer.removeListener(_onTimerChanged);
     WidgetsBinding.instance.removeObserver(this);
-    _closeOverlayIfNeeded();
     _timer.dispose();
     _ytController?.dispose();
     _mp4Controller?.dispose();
     _player.dispose();
+    _stopFgService();
     super.dispose();
   }
 
@@ -310,17 +302,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                   context,
                   MaterialPageRoute(builder: (_) => const HistoryScreen()),
                 ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              try {
-                await fow.FlutterOverlayWindow.closeOverlay();
-              } catch (_) {}
-              _overlayShown = false;
-              await Future.delayed(const Duration(milliseconds: 300));
-              await _openOverlayIfNeeded();
-            },
           ),
         ],
       ),
@@ -357,8 +338,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                 ),
               ),
             ),
-            Flexible(
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.38,
+              ),
               child: ListView.builder(
+                shrinkWrap: true,
                 itemCount: currentGroup.exercises.length,
                 itemBuilder: (context, i) {
                   final ex = currentGroup.exercises[i];

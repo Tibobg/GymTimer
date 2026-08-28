@@ -6,6 +6,7 @@ class TimerService extends ChangeNotifier {
   static const _kIsRunning = 'gym.isRunning';
   static const _kElapsedMs = 'gym.elapsedMs';
   static const _kLastEpochMs = 'gym.lastEpochMs';
+  static const _kLastStopIdx = 'gym.lastStopIdx';
 
   Timer? _poll;
   Duration _elapsed = Duration.zero;
@@ -26,6 +27,11 @@ class TimerService extends ChangeNotifier {
     if (secs < 180) return 2;
     if (secs < 270) return 3;
     return 4;
+  }
+
+  Future<void> _loadState() async {
+    final p = await SharedPreferences.getInstance();
+    _lastStopIdx = p.getInt(_kLastStopIdx) ?? 0;
   }
 
   Future<void> start() async {
@@ -59,6 +65,7 @@ class TimerService extends ChangeNotifier {
     await p.setInt(_kElapsedMs, 0);
     await p.setInt(_kLastEpochMs, now);
     await p.setBool(_kIsRunning, false);
+    await p.setInt(_kLastStopIdx, 0);
     _elapsed = Duration.zero;
     _isRunning = false;
     _lastStopIdx = 0;
@@ -67,6 +74,7 @@ class TimerService extends ChangeNotifier {
   }
 
   void init() {
+    _loadState();
     _poll = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       final p = await SharedPreferences.getInstance();
       await p.reload();
@@ -95,6 +103,7 @@ class TimerService extends ChangeNotifier {
           capped >= stops[_lastStopIdx] &&
           capped < capMs) {
         _lastStopIdx++;
+        await p.setInt(_kLastStopIdx, _lastStopIdx);
         await pause();
       }
 

@@ -15,8 +15,8 @@ void main() {
       channelDescription: 'Chrono en cours',
       isSticky: true,
       buttons: [
-        fft.NotificationButton(id: 'toggle', text: 'Lecture/Pause'),
-        fft.NotificationButton(id: 'reset', text: 'Reset'),
+        fft.NotificationButton(id: 'toggle', text: '⏯ Lecture/Pause'),
+        fft.NotificationButton(id: 'reset', text: '↺ Reset'),
       ],
     ),
     iosNotificationOptions: fft.IOSNotificationOptions(

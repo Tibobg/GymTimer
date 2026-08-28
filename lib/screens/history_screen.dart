@@ -14,6 +14,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   List<WorkoutSession> _history = [];
   bool _syncing = false;
+  DateTime _focusedMonth = DateTime.now();
 
   @override
   void initState() {
@@ -41,6 +42,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  bool _hasSession(DateTime day) {
+    return _history.any(
+      (s) =>
+          s.date.year == day.year &&
+          s.date.month == day.month &&
+          s.date.day == day.day,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,28 +71,181 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
         ],
       ),
-      body:
-          _history.isEmpty
-              ? const Center(child: Text('Aucune séance enregistrée'))
-              : ListView.builder(
-                itemCount: _history.length,
-                itemBuilder: (context, i) {
-                  final s = _history[i];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: ListTile(
-                      title: Text(s.planName),
-                      subtitle: Text(
-                        '${s.date.day.toString().padLeft(2, '0')}/${s.date.month.toString().padLeft(2, '0')}/${s.date.year} — ${s.durationSeconds ~/ 60}min ${s.durationSeconds % 60}s',
+      body: Column(
+        children: [
+          _CalendarHeader(
+            focusedMonth: _focusedMonth,
+            onPrevious:
+                () => setState(
+                  () =>
+                      _focusedMonth = DateTime(
+                        _focusedMonth.year,
+                        _focusedMonth.month - 1,
                       ),
-                      trailing: Text('${s.exercises.length} exos'),
+                ),
+            onNext:
+                () => setState(
+                  () =>
+                      _focusedMonth = DateTime(
+                        _focusedMonth.year,
+                        _focusedMonth.month + 1,
+                      ),
+                ),
+          ),
+          _CalendarGrid(focusedMonth: _focusedMonth, hasSession: _hasSession),
+          const Divider(),
+          Expanded(
+            child:
+                _history.isEmpty
+                    ? const Center(child: Text('Aucune séance enregistrée'))
+                    : ListView.builder(
+                      itemCount: _history.length,
+                      itemBuilder: (context, i) {
+                        final s = _history[i];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          child: ListTile(
+                            title: Text(s.planName),
+                            subtitle: Text(
+                              '${s.date.day.toString().padLeft(2, '0')}/${s.date.month.toString().padLeft(2, '0')}/${s.date.year} — ${s.durationSeconds ~/ 60}min ${s.durationSeconds % 60}s',
+                            ),
+                            trailing: Text('${s.exercises.length} exos'),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarHeader extends StatelessWidget {
+  final DateTime focusedMonth;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  const _CalendarHeader({
+    required this.focusedMonth,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final monthNames = [
+      'Janvier',
+      'Février',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Août',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Décembre',
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: onPrevious,
+          ),
+          Text(
+            '${monthNames[focusedMonth.month - 1]} ${focusedMonth.year}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          IconButton(icon: const Icon(Icons.chevron_right), onPressed: onNext),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarGrid extends StatelessWidget {
+  final DateTime focusedMonth;
+  final bool Function(DateTime) hasSession;
+  const _CalendarGrid({required this.focusedMonth, required this.hasSession});
+
+  @override
+  Widget build(BuildContext context) {
+    final firstDay = DateTime(focusedMonth.year, focusedMonth.month, 1);
+    int weekdayOffset = firstDay.weekday - 1;
+    final daysInMonth =
+        DateTime(focusedMonth.year, focusedMonth.month + 1, 0).day;
+    final today = DateTime.now();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children:
+                ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+                    .map(
+                      (d) => Expanded(
+                        child: Center(
+                          child: Text(
+                            d,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 7,
+            childAspectRatio: 1,
+            children: List.generate(weekdayOffset + daysInMonth, (index) {
+              if (index < weekdayOffset) return const SizedBox.shrink();
+              final day = index - weekdayOffset + 1;
+              final date = DateTime(focusedMonth.year, focusedMonth.month, day);
+              final isToday =
+                  date.year == today.year &&
+                  date.month == today.month &&
+                  date.day == today.day;
+              final done = hasSession(date);
+
+              return Container(
+                margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color:
+                      done
+                          ? Colors.green.withOpacity(0.3)
+                          : (isToday ? Colors.white.withOpacity(0.1) : null),
+                  shape: BoxShape.circle,
+                  border:
+                      isToday ? Border.all(color: Colors.greenAccent) : null,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$day',
+                  style: TextStyle(
+                    color: done ? Colors.greenAccent : Colors.white,
+                    fontWeight:
+                        done || isToday ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
     );
   }
 }
