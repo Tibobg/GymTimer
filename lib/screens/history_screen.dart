@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../models/workout_session.dart';
 import '../services/workout_service.dart';
 import '../services/truenas_service.dart';
@@ -51,12 +52,146 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  void _showProgressChart() {
+    final allExercises = <String>{};
+    for (final s in _history) {
+      for (final e in s.exercises) {
+        allExercises.add(e.name);
+      }
+    }
+    if (allExercises.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Aucune donnée')));
+      return;
+    }
+
+    String selected = allExercises.first;
+
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => StatefulBuilder(
+            builder: (context, setSt) {
+              final spots = <FlSpot>[];
+              int idx = 0;
+              for (final session in _history.reversed) {
+                final ex = session.exercises.firstWhere(
+                  (e) => e.name == selected,
+                  orElse:
+                      () => SessionExercise(
+                        name: '',
+                        seriesCompleted: 0,
+                        durationSeconds: 0,
+                      ),
+                );
+                if (ex.weightUsed != null && ex.weightUsed! > 0) {
+                  spots.add(FlSpot(idx.toDouble(), ex.weightUsed!));
+                  idx++;
+                }
+              }
+
+              return AlertDialog(
+                title: const Text('Progression'),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: 320,
+                  child: Column(
+                    children: [
+                      DropdownButton<String>(
+                        value: selected,
+                        isExpanded: true,
+                        items:
+                            allExercises
+                                .map(
+                                  (e) => DropdownMenuItem(
+                                    value: e,
+                                    child: Text(
+                                      e,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                        onChanged: (v) => setSt(() => selected = v!),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child:
+                            spots.length < 2
+                                ? const Center(
+                                  child: Text('Pas assez de données'),
+                                )
+                                : LineChart(
+                                  LineChartData(
+                                    gridData: FlGridData(show: true),
+                                    titlesData: FlTitlesData(
+                                      leftTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: true,
+                                          reservedSize: 40,
+                                        ),
+                                      ),
+                                      bottomTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      rightTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                      topTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: false,
+                                        ),
+                                      ),
+                                    ),
+                                    borderData: FlBorderData(show: true),
+                                    lineBarsData: [
+                                      LineChartBarData(
+                                        spots: spots,
+                                        isCurved: true,
+                                        barWidth: 3,
+                                        color: Colors.greenAccent,
+                                        dotData: FlDotData(show: true),
+                                        belowBarData: BarAreaData(
+                                          show: true,
+                                          color: Colors.greenAccent.withOpacity(
+                                            0.15,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Historique'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.show_chart),
+            onPressed: _showProgressChart,
+          ),
           if (widget.nasService != null)
             IconButton(
               icon:

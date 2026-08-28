@@ -3,7 +3,6 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart' as fft;
 import 'package:provider/provider.dart';
 import 'services/settings_service.dart';
 import 'screens/day_picker_screen.dart';
-import 'bg_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

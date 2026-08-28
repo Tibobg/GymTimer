@@ -34,25 +34,8 @@ class GymTimerTaskHandler extends TaskHandler {
   }
 
   @override
-  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {}
-
-  @override
   Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
     _timer?.cancel();
-  }
-
-  @override
-  void onButtonPressed(String id) async {
-    final p = await SharedPreferences.getInstance();
-    if (id == 'toggle') {
-      final running = p.getBool('gym.isRunning') ?? false;
-      await gymSetRunning(!running);
-    } else if (id == 'reset') {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await p.setInt('gym.elapsedMs', 0);
-      await p.setInt('gym.lastEpochMs', now);
-      await p.setBool('gym.isRunning', false);
-    }
   }
 
   @override

@@ -4,7 +4,8 @@ import '../services/catalog_service.dart';
 import '../services/workout_service.dart';
 
 class SessionBuilderScreen extends StatefulWidget {
-  const SessionBuilderScreen({super.key});
+  final WorkoutPlan? planToEdit;
+  const SessionBuilderScreen({super.key, this.planToEdit});
   @override
   State<SessionBuilderScreen> createState() => _SessionBuilderScreenState();
 }
@@ -14,6 +15,19 @@ class _SessionBuilderScreenState extends State<SessionBuilderScreen> {
   final _nameCtrl = TextEditingController();
   int? _weekday;
   String _selectedCategory = 'Tous';
+
+  @override
+  void initState() {
+    super.initState();
+    final edit = widget.planToEdit;
+    if (edit != null) {
+      _nameCtrl.text = edit.name;
+      _weekday = edit.weekday;
+      for (final g in edit.groups) {
+        _selected.addAll(g.exercises);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -30,7 +44,11 @@ class _SessionBuilderScreenState extends State<SessionBuilderScreen> {
             : CatalogService.byCategory(_selectedCategory);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Créer une séance')),
+      appBar: AppBar(
+        title: Text(
+          widget.planToEdit != null ? 'Modifier la séance' : 'Créer une séance',
+        ),
+      ),
       body: Column(
         children: [
           Padding(
@@ -210,6 +228,7 @@ class _SessionBuilderScreenState extends State<SessionBuilderScreen> {
                         : () async {
                           final plan = WorkoutPlan(
                             id:
+                                widget.planToEdit?.id ??
                                 DateTime.now().millisecondsSinceEpoch
                                     .toString(),
                             name: _nameCtrl.text.trim(),
@@ -220,10 +239,15 @@ class _SessionBuilderScreenState extends State<SessionBuilderScreen> {
                                 exercises: List.from(_selected),
                               ),
                             ],
-                            createdAt: DateTime.now(),
+                            createdAt:
+                                widget.planToEdit?.createdAt ?? DateTime.now(),
                             isCustom: true,
                           );
-                          await WorkoutService.addPlan(plan);
+                          if (widget.planToEdit != null) {
+                            await WorkoutService.updatePlan(plan);
+                          } else {
+                            await WorkoutService.addPlan(plan);
+                          }
                           if (mounted) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(

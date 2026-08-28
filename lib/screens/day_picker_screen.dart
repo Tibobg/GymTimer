@@ -31,6 +31,31 @@ class _DayPickerScreenState extends State<DayPickerScreen> {
     _load();
   }
 
+  Future<void> _confirmDelete(BuildContext context, WorkoutPlan plan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: const Text('Supprimer la séance'),
+            content: Text('Supprimer "${plan.name}" ?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Supprimer'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed == true) {
+      await _deletePlan(plan.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final byDay = <int, List<WorkoutPlan>>{};
@@ -100,8 +125,18 @@ class _DayPickerScreenState extends State<DayPickerScreen> {
                               builder: (_) => WorkoutScreen(plan: plan),
                             ),
                           ),
-                      onDelete:
-                          plan.isCustom ? () => _deletePlan(plan.id) : null,
+                      onEdit:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => SessionBuilderScreen(planToEdit: plan),
+                            ),
+                          ).then((_) => _load()),
+                      onLongPress:
+                          plan.isCustom
+                              ? () => _confirmDelete(context, plan)
+                              : null,
                     ),
                   ),
                 ],
@@ -130,7 +165,18 @@ class _DayPickerScreenState extends State<DayPickerScreen> {
                           builder: (_) => WorkoutScreen(plan: plan),
                         ),
                       ),
-                  onDelete: plan.isCustom ? () => _deletePlan(plan.id) : null,
+                  onEdit:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => SessionBuilderScreen(planToEdit: plan),
+                        ),
+                      ).then((_) => _load()),
+                  onLongPress:
+                      plan.isCustom
+                          ? () => _confirmDelete(context, plan)
+                          : null,
                 ),
               ),
             ],
@@ -156,8 +202,14 @@ class _DayPickerScreenState extends State<DayPickerScreen> {
 class _PlanTile extends StatelessWidget {
   final WorkoutPlan plan;
   final VoidCallback onTap;
-  final VoidCallback? onDelete;
-  const _PlanTile({required this.plan, required this.onTap, this.onDelete});
+  final VoidCallback? onEdit;
+  final VoidCallback? onLongPress;
+  const _PlanTile({
+    required this.plan,
+    required this.onTap,
+    this.onEdit,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -167,18 +219,19 @@ class _PlanTile extends StatelessWidget {
       subtitle: Text(
         '${plan.groups.expand((g) => g.exercises).length} exercices',
       ),
-      trailing:
-          onDelete != null
-              ? IconButton(
-                icon: const Icon(
-                  Icons.delete,
-                  color: Colors.redAccent,
-                  size: 20,
-                ),
-                onPressed: onDelete,
-              )
-              : const Icon(Icons.chevron_right),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onEdit != null)
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20),
+              onPressed: onEdit,
+            ),
+          const Icon(Icons.chevron_right, color: Colors.white70),
+        ],
+      ),
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }

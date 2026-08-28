@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,25 +14,26 @@ class TimerService extends ChangeNotifier {
   bool _isRunning = false;
   int _lastStopIdx = 0;
   int _pausesDone = 0;
+  int _restMs = 90000;
 
   Duration get elapsed => _elapsed;
   bool get isRunning => _isRunning;
   int get pausesDone => _pausesDone;
-
-  static const totalCycle = Duration(minutes: 6);
-  int get capMs => totalCycle.inMilliseconds;
+  int get capMs => _restMs * 4;
 
   int get currentSerie {
     final secs = _elapsed.inSeconds;
-    if (secs < 90) return 1;
-    if (secs < 180) return 2;
-    if (secs < 270) return 3;
+    final restSec = _restMs ~/ 1000;
+    if (secs < restSec) return 1;
+    if (secs < restSec * 2) return 2;
+    if (secs < restSec * 3) return 3;
     return 4;
   }
 
   Future<void> _loadState() async {
     final p = await SharedPreferences.getInstance();
     _lastStopIdx = p.getInt(_kLastStopIdx) ?? 0;
+    _restMs = (p.getInt('rest_seconds') ?? 90) * 1000;
   }
 
   Future<void> start() async {
@@ -51,7 +53,7 @@ class TimerService extends ChangeNotifier {
     final base = p.getInt(_kElapsedMs) ?? 0;
     final last = p.getInt(_kLastEpochMs) ?? now;
     final delta = now - last;
-    final newBase = (base + (delta > 0 ? delta : 0)).clamp(0, 360000);
+    final newBase = (base + (delta > 0 ? delta : 0)).clamp(0, capMs);
     await p.setInt(_kElapsedMs, newBase);
     await p.setInt(_kLastEpochMs, now);
     await p.setBool(_kIsRunning, false);
@@ -73,8 +75,8 @@ class TimerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void init() {
-    _loadState();
+  void init() async {
+    await _loadState();
     _poll = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       final p = await SharedPreferences.getInstance();
       await p.reload();
@@ -84,32 +86,34 @@ class TimerService extends ChangeNotifier {
           p.getInt(_kLastEpochMs) ?? DateTime.now().millisecondsSinceEpoch;
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       final effMs = running ? (baseMs + (nowMs - lastMs)) : baseMs;
-      final capped = effMs > capMs ? capMs : effMs;
+      final capped = min(effMs, capMs);
       final secs = capped ~/ 1000;
+      final restSec = _restMs ~/ 1000;
 
       _pausesDone =
-          (secs >= 360)
+          (secs >= restSec * 4)
               ? 4
-              : (secs >= 270)
+              : (secs >= restSec * 3)
               ? 3
-              : (secs >= 180)
+              : (secs >= restSec * 2)
               ? 2
-              : (secs >= 90)
+              : (secs >= restSec)
               ? 1
               : 0;
 
-      const stops = [90 * 1000, 180 * 1000, 270 * 1000];
+      final stops = [_restMs, _restMs * 2, _restMs * 3];
       if (_lastStopIdx < stops.length &&
           capped >= stops[_lastStopIdx] &&
           capped < capMs) {
         _lastStopIdx++;
         await p.setInt(_kLastStopIdx, _lastStopIdx);
         await pause();
+        onPause?.call();
       }
 
-      if (secs >= 360 && running) {
+      if (secs >= restSec * 4 && running) {
         await pause();
-        _elapsed = totalCycle;
+        _elapsed = Duration(milliseconds: capMs);
         notifyListeners();
         onAutoAdvance?.call();
         return;
@@ -128,4 +132,5 @@ class TimerService extends ChangeNotifier {
   }
 
   VoidCallback? onAutoAdvance;
+  VoidCallback? onPause;
 }

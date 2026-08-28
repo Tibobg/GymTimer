@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:flutter/services.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
 import '../services/settings_service.dart';
@@ -41,6 +42,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     WidgetsBinding.instance.addObserver(this);
     _timer = TimerService();
     _timer.onAutoAdvance = _onAutoAdvance;
+    _timer.onPause = _playBeep;
     _timer.addListener(_onTimerChanged);
     _timer.init();
     _initNotif();
@@ -115,7 +117,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void _playBeep() async {
-    // Beep via notification (fiable en background)
+    HapticFeedback.heavyImpact();
     try {
       const androidDetails = AndroidNotificationDetails(
         'beep_channel',
@@ -351,6 +353,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                     exercise: ex,
                     isActive: i == _exIndexInGroup,
                     isDone: _isDone(_groupIndex, i),
+                    currentSerie: _timer.currentSerie,
                     index: i,
                     total: currentGroup.exercises.length,
                     onTap: () => _goTo(_groupIndex, i),
@@ -414,38 +417,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                 ),
               ),
             ),
-            if (showNext && next != null) ...[
-              const SizedBox(height: 12),
-              Card(
-                color: Colors.green.withOpacity(0.15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.arrow_forward, size: 28),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'À venir',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              '${next.name} • ${next.targetWeight?.toStringAsFixed(0) ?? '—'} kg',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -457,6 +428,7 @@ class _ExerciseListItem extends StatelessWidget {
   final PlannedExercise exercise;
   final bool isActive;
   final bool isDone;
+  final int currentSerie;
   final int index;
   final int total;
   final VoidCallback onTap;
@@ -466,6 +438,7 @@ class _ExerciseListItem extends StatelessWidget {
     required this.exercise,
     required this.isActive,
     required this.isDone,
+    required this.currentSerie,
     required this.index,
     required this.total,
     required this.onTap,
@@ -562,9 +535,12 @@ class _ExerciseListItem extends StatelessWidget {
                       ),
                       onPressed: () => onAdjustWeight(-0.5),
                     ),
-                    const Text(
-                      'S1/4',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    Text(
+                      isActive ? 'S$currentSerie/4' : '',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(

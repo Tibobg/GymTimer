@@ -48,6 +48,15 @@ class WorkoutService {
     await savePlans(plans);
   }
 
+  static Future<void> updatePlan(WorkoutPlan plan) async {
+    final plans = await loadPlans();
+    final idx = plans.indexWhere((p) => p.id == plan.id);
+    if (idx >= 0) {
+      plans[idx] = plan;
+      await savePlans(plans);
+    }
+  }
+
   static List<WorkoutPlan> _defaultPlans() {
     final ex = CatalogService.all;
     Exercise find(String id) => ex.firstWhere((e) => e.id == id);
