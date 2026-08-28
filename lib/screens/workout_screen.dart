@@ -13,6 +13,7 @@ import '../services/timer_service.dart';
 import '../services/workout_service.dart';
 import '../bg_service.dart';
 import 'history_screen.dart';
+import 'dart:io';
 
 class WorkoutScreen extends StatefulWidget {
   final WorkoutPlan plan;
@@ -106,11 +107,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             stayAwake: false,
             contentType: AndroidContentType.sonification,
             usageType: AndroidUsageType.media,
-            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+            audioFocus: AndroidAudioFocus.gainTransient,
           ),
         ),
       );
-      await _player.setVolume(0.7);
+      await _player.setVolume(1.0);
       await _player.play(AssetSource('beep.mp3'));
     } catch (_) {}
   }
@@ -202,7 +203,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       _groupIndex = gi.clamp(0, widget.plan.groups.length - 1);
       _exIndexInGroup = ei.clamp(0, currentGroup.exercises.length - 1);
     });
-    _timer.reset();
     _loadMedia();
   }
 
@@ -435,34 +435,7 @@ class _ExerciseListItem extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              if (exercise.imageAsset != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.asset(
-                    exercise.imageAsset!,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              else
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color:
-                        isActive
-                            ? Colors.green.withOpacity(0.25)
-                            : Colors.white12,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.image,
-                    size: 20,
-                    color: Colors.white38,
-                  ),
-                ),
+              _ExerciseImage(path: exercise.imageAsset),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -521,6 +494,37 @@ class _ExerciseListItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ExerciseImage extends StatelessWidget {
+  final String? path;
+  const _ExerciseImage({this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    if (path == null) {
+      return Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white12,
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.image, size: 20, color: Colors.white38),
+      );
+    }
+    if (path!.startsWith('assets/')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(path!, width: 56, height: 56, fit: BoxFit.cover),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.file(File(path!), width: 56, height: 56, fit: BoxFit.cover),
     );
   }
 }

@@ -3,9 +3,11 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart' as fft;
 import 'package:provider/provider.dart';
 import 'services/settings_service.dart';
 import 'screens/day_picker_screen.dart';
+import 'services/catalog_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await CatalogService.loadCustom();
 
   fft.FlutterForegroundTask.init(
     androidNotificationOptions: fft.AndroidNotificationOptions(

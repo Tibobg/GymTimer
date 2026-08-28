@@ -19,7 +19,7 @@ class TimerService extends ChangeNotifier {
   Duration get elapsed => _elapsed;
   bool get isRunning => _isRunning;
   int get pausesDone => _pausesDone;
-  int get capMs => _restMs * 4;
+  int get capMs => _restMs * 3;
 
   int get currentSerie {
     final secs = _elapsed.inSeconds;
@@ -91,9 +91,7 @@ class TimerService extends ChangeNotifier {
       final restSec = _restMs ~/ 1000;
 
       _pausesDone =
-          (secs >= restSec * 4)
-              ? 4
-              : (secs >= restSec * 3)
+          (secs >= restSec * 3)
               ? 3
               : (secs >= restSec * 2)
               ? 2
@@ -101,7 +99,7 @@ class TimerService extends ChangeNotifier {
               ? 1
               : 0;
 
-      final stops = [_restMs, _restMs * 2, _restMs * 3];
+      final stops = [_restMs, _restMs * 2];
       if (_lastStopIdx < stops.length &&
           capped >= stops[_lastStopIdx] &&
           capped < capMs) {
@@ -111,7 +109,7 @@ class TimerService extends ChangeNotifier {
         onPause?.call();
       }
 
-      if (secs >= restSec * 4 && running) {
+      if (secs >= restSec * 3 && running) {
         await pause();
         _elapsed = Duration(milliseconds: capMs);
         notifyListeners();

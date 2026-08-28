@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/exercise.dart';
 
 class CatalogService {
-  static final List<Exercise> _exercises = [
-    // Jambes
+  static const _kCustom = 'custom_exercises_v1';
+  static List<Exercise> _custom = [];
+
+  static final List<Exercise> _builtIn = [
+    // … colle ici ta liste actuelle d'exercices (identique à avant) …
     Exercise(
       id: 'leg_press',
       name: 'Leg press',
@@ -52,7 +59,6 @@ class CatalogService {
       imageAsset: 'assets/exos/MolletPress.png',
       defaultWeight: 90,
     ),
-    // Pectoraux
     Exercise(
       id: 'dev_incline_hal',
       name: 'Développé incliné haltères',
@@ -81,7 +87,6 @@ class CatalogService {
       imageAsset: 'assets/exos/EcartePoulie.png',
       defaultWeight: 7.5,
     ),
-    // Dos
     Exercise(
       id: 'tirage_vert',
       name: 'Tirage vertical serré',
@@ -110,7 +115,6 @@ class CatalogService {
       imageAsset: 'assets/exos/TirageHorizontal.png',
       defaultWeight: 35,
     ),
-    // Épaules
     Exercise(
       id: 'shoulder_press',
       name: 'Shoulder press',
@@ -129,6 +133,7 @@ class CatalogService {
       id: 'ele_front_hal',
       name: 'Élévations frontales haltères',
       category: 'Épaules',
+      imageAsset: 'assets/exos/ElevationsFrontalesHalteres.png',
       defaultWeight: 8,
     ),
     Exercise(
@@ -145,7 +150,6 @@ class CatalogService {
       imageAsset: 'assets/exos/ShrugsHalteres.png',
       defaultWeight: 18,
     ),
-    // Biceps
     Exercise(
       id: 'curl_incline',
       name: 'Curl incliné banc 45°',
@@ -174,7 +178,6 @@ class CatalogService {
       imageAsset: 'assets/exos/CurlInversePoulie.png',
       defaultWeight: 4,
     ),
-    // Triceps
     Exercise(
       id: 'overhead_poulie',
       name: 'Overhead poulie',
@@ -203,7 +206,6 @@ class CatalogService {
       imageAsset: 'assets/exos/ExtensionUneMain.png',
       defaultWeight: 2,
     ),
-    // Avant-bras
     Exercise(
       id: 'curl_conc_prone',
       name: 'Curl concentration pronation',
@@ -232,7 +234,6 @@ class CatalogService {
       imageAsset: 'assets/exos/CurlInversePoulie.png',
       defaultWeight: 4,
     ),
-    // Abdos
     Exercise(
       id: 'circuit_abdos',
       name: 'Circuit Abdos',
@@ -241,16 +242,51 @@ class CatalogService {
     ),
   ];
 
-  static List<Exercise> get all => List.unmodifiable(_exercises);
+  static Future<void> loadCustom() async {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kCustom);
+    if (raw != null) {
+      final list = jsonDecode(raw) as List;
+      _custom = list.map((e) => Exercise.fromJson(e)).toList();
+    }
+  }
+
+  static Future<void> _saveCustom() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(
+      _kCustom,
+      jsonEncode(_custom.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  static List<Exercise> get all => List.unmodifiable([..._builtIn, ..._custom]);
   static List<String> get categories =>
-      _exercises.map((e) => e.category).toSet().toList()..sort();
+      all.map((e) => e.category).toSet().toList()..sort();
   static List<Exercise> byCategory(String cat) =>
-      _exercises.where((e) => e.category == cat).toList();
+      all.where((e) => e.category == cat).toList();
   static Exercise? byId(String id) {
     try {
-      return _exercises.firstWhere((e) => e.id == id);
+      return all.firstWhere((e) => e.id == id);
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<void> addCustom(Exercise ex) async {
+    _custom.add(ex);
+    await _saveCustom();
+  }
+
+  static Future<void> deleteCustom(String id) async {
+    _custom.removeWhere((e) => e.id == id);
+    await _saveCustom();
+  }
+
+  static Future<String> saveImageToAppDir(File source) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final name = 'ex_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final dest = File('${dir.path}/$name');
+    await dest.writeAsBytes(await source.readAsBytes());
+    return dest.path;
   }
 }

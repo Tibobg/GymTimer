@@ -100,48 +100,51 @@ class _DayPickerScreenState extends State<DayPickerScreen> {
         onRefresh: _load,
         child: ListView(
           children: [
-            ...byDay.entries.map((e) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      dayNames[e.key],
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ),
-                  ...e.value.map(
-                    (plan) => _PlanTile(
-                      plan: plan,
-                      onTap:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => WorkoutScreen(plan: plan),
-                            ),
+            ...(byDay.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+                .map((e) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(
+                          dayNames[e.key],
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
                           ),
-                      onEdit:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => SessionBuilderScreen(planToEdit: plan),
-                            ),
-                          ).then((_) => _load()),
-                      onLongPress:
-                          plan.isCustom
-                              ? () => _confirmDelete(context, plan)
-                              : null,
-                    ),
-                  ),
-                ],
-              );
-            }),
+                        ),
+                      ),
+                      ...e.value.map(
+                        (plan) => _PlanTile(
+                          plan: plan,
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WorkoutScreen(plan: plan),
+                                ),
+                              ),
+                          onEdit:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => SessionBuilderScreen(
+                                        planToEdit: plan,
+                                      ),
+                                ),
+                              ).then((_) => _load()),
+                          onLongPress:
+                              plan.isCustom
+                                  ? () => _confirmDelete(context, plan)
+                                  : null,
+                        ),
+                      ),
+                    ],
+                  );
+                }),
             if (freePlans.isNotEmpty) ...[
               const Divider(),
               const Padding(
