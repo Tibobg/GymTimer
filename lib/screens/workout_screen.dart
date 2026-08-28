@@ -152,28 +152,22 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   Future<void> _finishSession() async {
-    final allExercises = widget.plan.groups.expand((g) => g.exercises).toList();
     final session = WorkoutSession(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       planName: widget.plan.name,
       date: DateTime.now(),
       durationSeconds: _timer.elapsed.inSeconds,
-      exercises:
-          allExercises
-              .asMap()
-              .entries
-              .map(
-                (e) => SessionExercise(
-                  name: e.value.name,
-                  weightUsed: e.value.targetWeight,
-                  seriesCompleted:
-                      _done.contains(_doneKey(0, e.key))
-                          ? 4
-                          : _timer.currentSerie,
-                  durationSeconds: _timer.elapsed.inSeconds,
-                ),
-              )
-              .toList(),
+      exercises: [
+        for (int gi = 0; gi < widget.plan.groups.length; gi++)
+          for (int ei = 0; ei < widget.plan.groups[gi].exercises.length; ei++)
+            SessionExercise(
+              name: widget.plan.groups[gi].exercises[ei].name,
+              weightUsed: widget.plan.groups[gi].exercises[ei].targetWeight,
+              seriesCompleted:
+                  _done.contains(_doneKey(gi, ei)) ? 4 : _timer.currentSerie,
+              durationSeconds: _timer.elapsed.inSeconds,
+            ),
+      ],
     );
     await WorkoutService.saveSession(session);
     if (mounted) {
