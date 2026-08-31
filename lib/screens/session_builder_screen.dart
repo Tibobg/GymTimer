@@ -360,12 +360,25 @@ class _SessionBuilderScreenState extends State<SessionBuilderScreen> {
                                     .toString(),
                             name: _nameCtrl.text.trim(),
                             weekday: _weekday,
-                            groups: [
-                              MuscleGroup(
-                                name: 'Séance',
-                                exercises: List.from(_selected),
-                              ),
-                            ],
+                            groups: () {
+                              final map = <String, List<PlannedExercise>>{};
+                              for (final ex in _selected) {
+                                final cat =
+                                    CatalogService.byId(
+                                      ex.exerciseId,
+                                    )?.category ??
+                                    'Autre';
+                                map.putIfAbsent(cat, () => []).add(ex);
+                              }
+                              return map.entries
+                                  .map(
+                                    (e) => MuscleGroup(
+                                      name: e.key,
+                                      exercises: e.value,
+                                    ),
+                                  )
+                                  .toList();
+                            }(),
                             createdAt:
                                 widget.planToEdit?.createdAt ?? DateTime.now(),
                             isCustom: true,

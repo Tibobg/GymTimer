@@ -31,9 +31,14 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   final Set<String> _done = {};
   final AudioPlayer _player = AudioPlayer();
   bool _isAdvancing = false;
+  final ScrollController _exerciseScroll = ScrollController();
 
   YoutubePlayerController? _ytController;
   VideoPlayerController? _mp4Controller;
+
+  bool get _isLastExercise =>
+      _groupIndex == widget.plan.groups.length - 1 &&
+      _exIndexInGroup == currentGroup.exercises.length - 1;
 
   @override
   void initState() {
@@ -43,6 +48,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     _timer.onAutoAdvance = _onAutoAdvance;
     _timer.onPause = _playBeep;
     _timer.addListener(_onTimerChanged);
+    _timer.onValidate = _onValidate;
     _timer.init();
     _startFgService();
     _loadMedia();
@@ -107,7 +113,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             stayAwake: false,
             contentType: AndroidContentType.sonification,
             usageType: AndroidUsageType.media,
-            audioFocus: AndroidAudioFocus.gainTransient,
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
           ),
         ),
       );
@@ -124,10 +130,24 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   void _onAutoAdvance() {
     if (_isAdvancing) return;
     _isAdvancing = true;
+    if (_isLastExercise) {
+      _playBeep();
+      _finishSession();
+      return;
+    }
     _markDoneCurrent();
     _playBeep();
     Future.delayed(const Duration(milliseconds: 200), () {
       _advanceExercise();
+    });
+  }
+
+  void _onValidate() {
+    if (_isAdvancing) return;
+    _isAdvancing = true;
+    _markDoneCurrent();
+    _playBeep();
+    Future.delayed(const Duration(milliseconds: 200), () {
       _isAdvancing = false;
     });
   }
@@ -137,6 +157,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     if (_exIndexInGroup + 1 < currentGroup.exercises.length) {
       setState(() => _exIndexInGroup++);
       _loadMedia();
+      _isAdvancing = false;
       return;
     }
     if (_groupIndex + 1 < widget.plan.groups.length) {
@@ -145,13 +166,19 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         _exIndexInGroup = 0;
       });
       _loadMedia();
+      _exerciseScroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+      _isAdvancing = false;
       return;
     }
-    _playBeep();
-    await _finishSession();
+    _isAdvancing = false;
   }
 
   Future<void> _finishSession() async {
+    _isAdvancing = false;
     final session = WorkoutSession(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       planName: widget.plan.name,
@@ -208,7 +235,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         _groupIndex--;
       _exIndexInGroup = 0;
     });
-    _timer.reset();
+    _exerciseScroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
     _loadMedia();
   }
 
@@ -232,6 +263,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     _ytController?.dispose();
     _mp4Controller?.dispose();
     _player.dispose();
+    _exerciseScroll.dispose();
     _stopFgService();
     super.dispose();
   }
@@ -300,6 +332,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: currentGroup.exercises.length,
+                controller: _exerciseScroll,
                 itemBuilder: (context, i) {
                   final ex = currentGroup.exercises[i];
                   return _ExerciseListItem(

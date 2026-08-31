@@ -19,9 +19,36 @@ class WorkoutService {
     }
     try {
       final list = jsonDecode(raw) as List;
-      return list.map((e) => WorkoutPlan.fromJson(e)).toList();
+      final plans = list.map((e) => WorkoutPlan.fromJson(e)).toList();
+
+      bool migrated = false;
+      for (int i = 0; i < plans.length; i++) {
+        final plan = plans[i];
+        if (plan.groups.length == 1 && plan.groups.first.name == 'Séance') {
+          final map = <String, List<PlannedExercise>>{};
+          for (final ex in plan.groups.first.exercises) {
+            final cat = CatalogService.byId(ex.exerciseId)?.category ?? 'Autre';
+            map.putIfAbsent(cat, () => []).add(ex);
+          }
+          if (map.length > 1) {
+            plans[i] = WorkoutPlan(
+              id: plan.id,
+              name: plan.name,
+              weekday: plan.weekday,
+              groups:
+                  map.entries
+                      .map((e) => MuscleGroup(name: e.key, exercises: e.value))
+                      .toList(),
+              createdAt: plan.createdAt,
+              isCustom: plan.isCustom,
+            );
+            migrated = true;
+          }
+        }
+      }
+      if (migrated) await savePlans(plans);
+      return plans;
     } catch (_) {
-      // Ancien format corrompu → reset
       final defaults = _defaultPlans();
       await savePlans(defaults);
       return defaults;

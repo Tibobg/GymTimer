@@ -8,6 +8,7 @@ class TimerService extends ChangeNotifier {
   static const _kElapsedMs = 'gym.elapsedMs';
   static const _kLastEpochMs = 'gym.lastEpochMs';
   static const _kLastStopIdx = 'gym.lastStopIdx';
+  VoidCallback? onValidate;
 
   Timer? _poll;
   Duration _elapsed = Duration.zero;
@@ -19,7 +20,7 @@ class TimerService extends ChangeNotifier {
   Duration get elapsed => _elapsed;
   bool get isRunning => _isRunning;
   int get pausesDone => _pausesDone;
-  int get capMs => _restMs * 3;
+  int get capMs => 360000;
 
   int get currentSerie {
     final secs = _elapsed.inSeconds;
@@ -99,17 +100,21 @@ class TimerService extends ChangeNotifier {
               ? 1
               : 0;
 
-      final stops = [_restMs, _restMs * 2];
+      final stops = [_restMs, _restMs * 2, _restMs * 3];
       if (_lastStopIdx < stops.length &&
           capped >= stops[_lastStopIdx] &&
           capped < capMs) {
         _lastStopIdx++;
         await p.setInt(_kLastStopIdx, _lastStopIdx);
         await pause();
-        onPause?.call();
+        if (_lastStopIdx == 3) {
+          onValidate?.call();
+        } else {
+          onPause?.call();
+        }
       }
 
-      if (secs >= restSec * 3 && running) {
+      if (capped >= 360000 && running) {
         await pause();
         _elapsed = Duration(milliseconds: capMs);
         notifyListeners();
